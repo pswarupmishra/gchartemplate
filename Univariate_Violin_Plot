@@ -1,0 +1,79 @@
+let allValues = [];
+
+// Set variables
+const yField = "value";             // Variable for violin plot
+const orientation = "vertical";     // "vertical" | "horizontal"
+const bins = 30;                    // No. of bins for density smoothness
+
+// Collect values
+context.panel.data.series.forEach((s) => {
+  const yValues = s.fields.find((f) => f.name === yField).values.toArray();
+  allValues = allValues.concat(yValues);
+});
+
+// Sort values
+allValues.sort((a, b) => a - b);
+
+// --- Build histogram for density ---
+const minVal = allValues[0];
+const maxVal = allValues[allValues.length - 1];
+const step = (maxVal - minVal) / bins;
+
+let density = [];
+for (let i = 0; i <= bins; i++) {
+  const y = minVal + i * step;
+  const count = allValues.filter(v => v >= y && v < y + step).length;
+  density.push({ y, density: count / allValues.length });
+}
+
+// Normalize density to scale width
+const maxDensity = Math.max(...density.map(d => d.density));
+density = density.map(d => ({
+  y: d.y,
+  density: d.density / maxDensity * 0.4 // scale to 40% width
+}));
+
+// Mirror for violin shape
+const left = density.map(d => orientation === "vertical"
+  ? [-d.density, d.y, d.density]   // x, y, raw density
+  : [d.y, -d.density, d.density]
+);
+const right = density.map(d => orientation === "vertical"
+  ? [d.density, d.y, d.density]
+  : [d.y, d.density, d.density]
+).reverse();
+
+const violinShape = left.concat(right);
+
+return {
+  tooltip: {
+    trigger: 'item',
+    formatter: (param) => {
+      if (orientation === "vertical") {
+        return `
+          ${yField}: ${param.value[1].toFixed(2)}<br>
+          Density: ${param.value[2].toFixed(4)}
+        `;
+      } else {
+        return `
+          ${yField}: ${param.value[0].toFixed(2)}<br>
+          Density: ${param.value[2].toFixed(4)}
+        `;
+      }
+    }
+  },
+  xAxis: orientation === "vertical" ? { type: "value", show: false } : { type: "value", name: yField },
+  yAxis: orientation === "vertical" ? { type: "value", name: yField } : { type: "value", show: false },
+  series: [
+    {
+      name: yField,
+      type: 'line',
+      data: violinShape,
+      areaStyle: { color: '#90caf9', opacity: 0.6 },
+      lineStyle: { color: '#4361ee' },
+      symbol: 'circle',
+      symbolSize: 4,
+      smooth: true
+    }
+  ]
+};
