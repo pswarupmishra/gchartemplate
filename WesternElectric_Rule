@@ -1,0 +1,142 @@
+// === Configurable Variables ===
+const xField = "no";        // X-axis field
+const yField = "value";     // Field to apply SPC rules on
+
+// === Collect Data ===
+let data = [];
+let values = [];
+context.panel.data.series.forEach((s) => {
+  const xArr = s.fields.find((f) => f.name === xField)?.values?.toArray() || [];
+  const yArr = s.fields.find((f) => f.name === yField)?.values?.toArray() || [];
+  for (let i = 0; i < xArr.length; i++) {
+    if (xArr[i] !== undefined && yArr[i] !== undefined) {
+      data.push([xArr[i], yArr[i]]);
+      values.push(yArr[i]);
+    }
+  }
+});
+
+// === Basic Stats ===
+const mean = values.reduce((a, b) => a + b, 0) / values.length;
+const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+const sigma = Math.sqrt(variance);
+const UCL = mean + 3 * sigma;
+const LCL = mean - 3 * sigma;
+
+// === Rule Classification ===
+let rule1 = [];
+let rule2 = [];
+let rule3 = [];
+let rule4 = [];
+
+data.forEach((point, i) => {
+  const [x, y] = point;
+
+  // Rule 1: One point beyond 3σ
+  if (y > UCL || y < LCL) {
+    rule1.push([x, y]);
+  }
+
+  // Rule 2: 2 of 3 consecutive points beyond 2σ
+  if (i >= 2) {
+    const last3 = values.slice(i - 2, i + 1);
+    const above2 = last3.filter(v => v > mean + 2 * sigma).length;
+    const below2 = last3.filter(v => v < mean - 2 * sigma).length;
+    if (above2 >= 2 || below2 >= 2) rule2.push([x, y]);
+  }
+
+  // Rule 3: 4 of 5 consecutive points beyond 1σ
+  if (i >= 4) {
+    const last5 = values.slice(i - 4, i + 1);
+    const above1 = last5.filter(v => v > mean + sigma).length;
+    const below1 = last5.filter(v => v < mean - sigma).length;
+    if (above1 >= 4 || below1 >= 4) rule3.push([x, y]);
+  }
+
+  // Rule 4: 8 consecutive points on same side of mean
+  if (i >= 7) {
+    const last8 = values.slice(i - 7, i + 1);
+    if (last8.every(v => v > mean) || last8.every(v => v < mean)) {
+      rule4.push([x, y]);
+    }
+  }
+});
+
+// === MarkLines for Mean and Control Limits ===
+const controlLines = [
+  { yAxis: mean, name: 'Mean', color: 'gray' },
+  { yAxis: mean + sigma, name: '+1σ', color: '#6c757d' },
+  { yAxis: mean - sigma, name: '-1σ', color: '#6c757d' },
+  { yAxis: mean + 2 * sigma, name: '+2σ', color: '#495057' },
+  { yAxis: mean - 2 * sigma, name: '-2σ', color: '#495057' },
+  { yAxis: UCL, name: '+3σ (UCL)', color: 'red' },
+  { yAxis: LCL, name: '-3σ (LCL)', color: 'blue' }
+].map(l => ({
+  yAxis: l.yAxis,
+  lineStyle: { type: 'dashed', color: l.color },
+  label: { formatter: `${l.name}: ${l.yAxis.toFixed(2)}`, color: l.color, position: 'end' }
+}));
+
+return {
+  tooltip: {
+    trigger: 'axis',
+    formatter: (params) => {
+      let str = `${xField}: ${params[0].value[0]}<br>${yField}: ${params[0].value[1].toFixed(2)}`;
+      params.forEach(p => {
+        if (p.seriesName.startsWith("Rule")) {
+          str += `<br><b>${p.seriesName}</b>`;
+        }
+      });
+      return str;
+    }
+  },
+  legend: {
+    data: ['Data', 'Rule 1', 'Rule 2', 'Rule 3', 'Rule 4']
+  },
+  xAxis: { type: 'value', name: xField },
+  yAxis: { type: 'value', name: yField },
+  series: [
+    {
+      name: 'Data',
+      type: 'line',
+      data: data,
+      smooth: false,
+      symbol: 'circle',
+      symbolSize: 4,
+      itemStyle: { color: '#4dabf7' },
+      markLine: { symbol: 'none', data: controlLines }
+    },
+    {
+      name: 'Rule 1',
+      type: 'scatter',
+      data: rule1,
+      symbol: 'diamond',
+      symbolSize: 10,
+      itemStyle: { color: 'red' }
+    },
+    {
+      name: 'Rule 2',
+      type: 'scatter',
+      data: rule2,
+      symbol: 'triangle',
+      symbolSize: 10,
+      itemStyle: { color: 'orange' }
+    },
+    {
+      name: 'Rule 3',
+      type: 'scatter',
+      data: rule3,
+      symbol: 'rect',
+      symbolSize: 10,
+      itemStyle: { color: 'purple' }
+    },
+    {
+      name: 'Rule 4',
+      type: 'scatter',
+      data: rule4,
+      symbol: 'star',
+      symbolSize: 12,
+      itemStyle: { color: 'green' }
+    }
+  ]
+};
