@@ -1,0 +1,68 @@
+// === Configurable Variables ===
+const field = "value";        // Field to compute KDE on
+const bandwidth = 1.0;        // Smoothing parameter
+const points = 100;           // Number of points in KDE curve
+
+// === Collect Values ===
+let values = [];
+context.panel.data.series.forEach((s) => {
+  const arr = s.fields.find((f) => f.name === field)?.values?.toArray() || [];
+  values = values.concat(arr);
+});
+
+if (values.length === 0) {
+  return {
+    title: { text: "No data available", left: "center" }
+  };
+}
+
+// Sort values
+values.sort((a, b) => a - b);
+const minVal = values[0];
+const maxVal = values[values.length - 1];
+
+// Gaussian kernel
+function gaussian(u) {
+  return Math.exp(-0.5 * u * u) / Math.sqrt(2 * Math.PI);
+}
+
+// KDE estimator
+function kdeEstimator(x) {
+  return values.reduce((sum, v) => sum + gaussian((x - v) / bandwidth), 0) / (values.length * bandwidth);
+}
+
+// Build KDE curve
+const step = (maxVal - minVal) / points;
+let kdeData = [];
+for (let i = 0; i <= points; i++) {
+  const x = minVal + i * step;
+  kdeData.push([x, kdeEstimator(x)]);
+}
+
+return {
+  tooltip: {
+    trigger: 'axis',
+    formatter: (params) => {
+      const p = params[0];
+      return `${field}: ${p.value[0].toFixed(2)}<br>Density: ${p.value[1].toFixed(4)}`;
+    }
+  },
+  xAxis: {
+    type: 'value',
+    name: field
+  },
+  yAxis: {
+    type: 'value',
+    name: 'Density'
+  },
+  series: [
+    {
+      type: 'line',
+      data: kdeData,
+      smooth: true,
+      lineStyle: { color: '#4361ee' },
+      areaStyle: { color: '#90caf9', opacity: 0.4 },
+      symbol: 'none'
+    }
+  ]
+};
