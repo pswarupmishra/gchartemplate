@@ -1,0 +1,90 @@
+// === Configurable Variables ===
+const field = "value";          // Field to plot histogram
+const autoBins = true;          // true = auto bin count, false = constant bin size
+const bins = 20;                // Used when autoBins = true
+const binSize = 5;              // Used when autoBins = false (constant width)
+const sortByFrequency = true;  // true = sort bars by frequency, false = by bin range
+
+// === Collect Values ===
+let values = [];
+context.panel.data.series.forEach((s) => {
+  const arr = s.fields.find((f) => f.name === field)?.values?.toArray() || [];
+  values = values.concat(arr);
+});
+
+// Handle empty dataset
+if (values.length === 0) {
+  return {
+    title: { text: "No data available", left: "center" }
+  };
+}
+
+// Sort values
+values.sort((a, b) => a - b);
+const minVal = values[0];
+const maxVal = values[values.length - 1];
+
+// === Compute bins ===
+let binEdges = [];
+if (autoBins) {
+  const step = (maxVal - minVal) / bins;
+  for (let i = 0; i <= bins; i++) {
+    binEdges.push(minVal + i * step);
+  }
+} else {
+  for (let edge = minVal; edge <= maxVal + binSize; edge += binSize) {
+    binEdges.push(edge);
+  }
+}
+
+// Count frequencies
+let binCounts = new Array(binEdges.length - 1).fill(0);
+values.forEach(v => {
+  let idx = binEdges.findIndex((edge, i) => i < binEdges.length - 1 && v >= edge && v < binEdges[i + 1]);
+  if (idx === -1) idx = binEdges.length - 2; // put max value in last bin
+  binCounts[idx]++;
+});
+
+// Prepare data
+let histogramData = binCounts.map((count, i) => {
+  return {
+    name: `${binEdges[i].toFixed(1)} - ${binEdges[i + 1].toFixed(1)}`,
+    value: count,
+    binStart: binEdges[i]
+  };
+});
+
+// === Sort if toggle is ON ===
+if (sortByFrequency) {
+  histogramData.sort((a, b) => b.value - a.value); // descending counts
+} else {
+  histogramData.sort((a, b) => a.binStart - b.binStart); // natural order
+}
+
+return {
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    formatter: (params) => {
+      const bin = params[0];
+      return `${bin.name}<br>Count: ${bin.value}`;
+    }
+  },
+  xAxis: {
+    type: 'category',
+    data: histogramData.map(d => d.name),
+    name: field,
+    axisLabel: { rotate: 45 }
+  },
+  yAxis: {
+    type: 'value',
+    name: 'Frequency'
+  },
+  series: [
+    {
+      type: 'bar',
+      data: histogramData.map(d => d.value),
+      itemStyle: { color: '#4dabf7' }
+    }
+  ]
+};
