@@ -1,0 +1,94 @@
+let wind;
+let allValues = []; // Array to collect all values for stats
+
+// Define axis variables (change these as needed)
+const xField = "no";        // X-axis field
+const yField = "value";     // Y-axis field
+const rotateField = "Direction"; // Optional rotation field
+
+const seriesData = context.panel.data.series.map((s) => {
+  const xValues = s.fields.find((f) => f.name === xField).values.toArray();
+  const yValues = s.fields.find((f) => f.name === yField).values.toArray();
+  const rotate = s.fields.find((f) => f.name === rotateField)?.values?.toArray();
+
+  allValues = allValues.concat(yValues); // Collect values for stats
+
+  wind = xValues.map((x, index) => {
+    return {
+      symbolRotate: rotate ? rotate[index] : 0,
+      value: [x, yValues[index]],
+    };
+  });
+
+  return wind;
+});
+
+// Calculate stats safely
+const meanValue = allValues.length > 0 
+  ? allValues.reduce((sum, val) => sum + val, 0) / allValues.length 
+  : 0;
+
+const variance = allValues.length > 0 
+  ? allValues.reduce((sum, val) => sum + Math.pow(val - meanValue, 2), 0) / allValues.length 
+  : 0;
+
+const stdDev = Math.sqrt(variance);
+const UCL = meanValue + 3 * stdDev;
+const LCL = meanValue - 3 * stdDev;
+
+return {
+  tooltip: {
+    trigger: 'axis',
+    formatter: (params) => {
+      const point = params[0];
+      return `${xField}: ${point.value[0]}<br>${yField}: ${point.value[1]}<br>Rotation: ${point.symbolRotate || 0}`;
+    },
+  },
+  xAxis: {
+    name: xField,
+    type: "value",
+  },
+  yAxis: {
+    name: yField,
+    type: "value",
+    min: "dataMin",  
+    max: "dataMax",  
+  },
+  dataZoom: [
+    { type: 'slider', xAxisIndex: 0, start: 0, end: 100 },
+    { type: 'inside', xAxisIndex: 0, start: 0, end: 100 },
+  ],
+  series: [
+    {
+      data: seriesData.flat(),
+      type: 'line',
+      symbolSize: 0.05,
+      itemStyle: {
+        color: 'grey',
+        opacity: 0.7,
+      },
+      markLine: {
+        data: [
+          {
+            name: 'UCL',
+            yAxis: UCL,
+            label: { formatter: `UCL: ${UCL.toFixed(2)}`, position: 'end', color: 'red' },
+            lineStyle: { color: 'red', type: 'dashed' },
+          },
+          {
+            name: 'LCL',
+            yAxis: LCL,
+            label: { formatter: `LCL: ${LCL.toFixed(2)}`, position: 'end', color: 'blue' },
+            lineStyle: { color: 'blue', type: 'dashed' },
+          },
+          {
+            name: 'Mean',
+            yAxis: meanValue,
+            label: { formatter: `Mean: ${meanValue.toFixed(2)}`, position: 'end', color: 'gray' },
+            lineStyle: { color: 'gray', type: 'dashed' },
+          },
+        ],
+      },
+    },
+  ],
+};
