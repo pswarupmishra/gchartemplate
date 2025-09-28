@@ -1,0 +1,192 @@
+// === CONFIGURABLE INPUTS ===
+const sortByColumn = 'timestamp';
+const plotColumn = 'temperature';
+const summaryStat = 'average';  // 'sum' | 'average' | 'last' | 'max' | 'min'
+const target = 80;
+
+// Define the grade thresholds (these map to zones)
+const gradeThresholds = {
+  greenStart: 0,
+  greenEnd: 60,
+  amberEnd: 80,
+  redEnd: 100
+};
+
+// === FETCH DATA (same as before) ===
+const fields = context.panel.data.series[0].fields;
+const colNames = fields.map(f => f.name);
+
+const sortIndex = colNames.findIndex(n => n.toLowerCase() === sortByColumn.toLowerCase());
+const plotIndex = colNames.findIndex(n => n.toLowerCase() === plotColumn.toLowerCase());
+
+if (sortIndex === -1 || plotIndex === -1) {
+  return {
+    title: {
+      text: `Column "${sortByColumn}" or "${plotColumn}" not found`,
+      left: 'center',
+      top: 'center'
+    }
+  };
+}
+
+let rows = [];
+for (let i = 0; i < fields[plotIndex].values.length; i++) {
+  const row = {};
+  colNames.forEach((name, j) => {
+    row[name] = fields[j].values.get(i);
+  });
+  rows.push(row);
+}
+
+rows.sort((a, b) => {
+  const av = a[sortByColumn], bv = b[sortByColumn];
+  if (typeof av === 'string' && typeof bv === 'string') {
+    return av.localeCompare(bv);
+  }
+  return av - bv;
+});
+
+const values = rows.map(r => r[plotColumn]).filter(v => v != null);
+
+let statVal;
+switch (summaryStat) {
+  case 'sum':
+    statVal = values.reduce((a, b) => a + b, 0);
+    break;
+  case 'average':
+    statVal = values.reduce((a, b) => a + b, 0) / values.length;
+    break;
+  case 'last':
+    statVal = values[values.length - 1];
+    break;
+  case 'max':
+    statVal = Math.max(...values);
+    break;
+  case 'min':
+    statVal = Math.min(...values);
+    break;
+  default:
+    statVal = values[0];
+}
+
+// Establish max scale (ensure covers redEnd etc.)
+const maxVal = Math.max(statVal * 1.1, gradeThresholds.redEnd, target * 1.2);
+
+// === ECharts Option mimicking gauge-grade style ===
+return {
+  series: [
+    {
+      name: plotColumn,
+      type: 'gauge',
+      startAngle: 200,
+      endAngle: -20,
+      radius: '90%',
+      progress: {
+        show: true,
+        overlap: false,
+        roundCap: true,
+        width: 15,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            { offset: 0, color: '#4caf50' },   // green
+            { offset: (gradeThresholds.greenEnd / maxVal), color: '#4caf50' },
+            { offset: (gradeThresholds.greenEnd / maxVal), color: '#ffb300' },
+            { offset: (gradeThresholds.amberEnd / maxVal), color: '#ffb300' },
+            { offset: (gradeThresholds.amberEnd / maxVal), color: '#f44336' },
+            { offset: 1, color: '#f44336' }
+          ])
+        }
+      },
+      axisLine: {
+        lineStyle: {
+          width: 15,
+          color: [
+            [gradeThresholds.greenEnd / maxVal, '#4caf50'],
+            [gradeThresholds.amberEnd / maxVal, '#ffb300'],
+            [1, '#f44336']
+          ]
+        }
+      },
+      pointer: {
+        length: '70%',
+        width: 5
+      },
+      axisTick: {
+        distance: -10,
+        splitNumber: 3,
+        lineStyle: {
+          width: 2,
+          color: '#999'
+        }
+      },
+      splitLine: {
+        distance: -14,
+        length: 16,
+        lineStyle: {
+          width: 3,
+          color: '#999'
+        }
+      },
+      axisLabel: {
+        distance: 25,
+        color: '#666',
+        fontSize: 12
+      },
+      detail: {
+        valueAnimation: true,
+        formatter: '{value}',
+        fontSize: 22,
+        color: 'auto'
+      },
+      title: {
+        fontSize: 14,
+        color: '#333'
+      },
+      data: [
+        {
+          name: `${summaryStat} of ${plotColumn}`,
+          value: statVal
+        }
+      ],
+      min: 0,
+      max: maxVal
+    },
+    // optional: Target marker
+    {
+      type: 'gauge',
+      startAngle: 200,
+      endAngle: -20,
+      radius: '90%',
+      pointer: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      detail: { show: false },
+      data: [
+        {
+          name: 'Target',
+          value: target
+        }
+      ],
+      anchor: {
+        show: true,
+        showAbove: true,
+        size: 12,
+        itemStyle: {
+          color: 'red'
+        }
+      }
+    }
+  ],
+  tooltip: {
+    formatter: (params) => {
+      return `
+        <b>${plotColumn}</b><br/>
+        Sorted by: ${sortByColumn}<br/>
+        ${summaryStat}: ${statVal.toFixed(2)}<br/>
+        Target: ${target}
+      `;
+    }
+  }
+};
