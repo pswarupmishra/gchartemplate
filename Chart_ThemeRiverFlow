@@ -1,0 +1,78 @@
+// === Configurable Fields ===
+const timeField = "CREATED_TIME";
+const valueField = "QUANTITY";
+const categoryField = "RESULT";
+
+// === Collect Data ===
+let rawRows = [];
+context.panel.data.series.forEach(s => {
+  const fields = {};
+  s.fields.forEach(f => { fields[f.name] = f.values.toArray(); });
+
+  const rowCount = fields[timeField].length;
+  for (let i = 0; i < rowCount; i++) {
+    rawRows.push({
+      [timeField]: fields[timeField][i],
+      [valueField]: fields[valueField][i],
+      [categoryField]: fields[categoryField][i]
+    });
+  }
+});
+
+// === Prepare ThemeRiver data ===
+// Format: [time, value, category]
+let riverData = rawRows.map(r => [
+  new Date(r[timeField]).getTime(),   // timestamp
+  r[valueField] || 0,
+  r[categoryField] || "Unknown"
+]);
+
+// === Unique categories for legend ===
+const categories = [...new Set(rawRows.map(r => r[categoryField]))];
+
+// === Chart Option ===
+return {
+  title: {
+    text: 'Result-wise Quantity Flow (ThemeRiver View)',
+    left: 'center'
+  },
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'line' }
+  },
+  legend: {
+    data: categories,
+    top: 40,
+    left: 'center'
+  },
+  singleAxis: {
+    type: 'time',
+    top: 80,
+    bottom: 60,
+    axisLabel: {
+      formatter: val => {
+        const d = new Date(val);
+        return `${d.getDate()}-${d.getMonth() + 1}`;
+      }
+    }
+  },
+  series: [
+    {
+      type: 'themeRiver',
+      data: riverData,
+      // === This part is crucial for tooltip ===
+      encode: {
+        time: 0,     // first column = timestamp
+        value: 1,    // second column = quantity
+        itemName: 2  // third column = category
+      },
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 20,
+          shadowColor: 'rgba(0, 0, 0, 0.8)'
+        }
+      }
+    }
+  ],
+  color: ['#4caf50', '#2196f3', '#f44336'] // PASS, DIVERTED, REWORK
+};
