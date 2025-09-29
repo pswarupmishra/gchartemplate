@@ -1,0 +1,62 @@
+// === Configurable Variables ===
+const xField = "CREATED_DATE";                 // Field for x-axis categories
+const stackFields = ["CLOSED", "OPEN"];        // Fields to stack
+const orientation = "vertical";                // "vertical" | "horizontal"
+const sortField = "CREATED_DATE";              // Field to sort bars by
+
+// === Collect Data ===
+let rows = [];
+context.panel.data.series.forEach((s) => {
+  const fields = {};
+  s.fields.forEach(f => { fields[f.name] = f.values.toArray(); });
+
+  const rowCount = fields[xField].length;
+  for (let i = 0; i < rowCount; i++) {
+    const row = { [xField]: fields[xField][i] };
+    stackFields.forEach(sf => {
+      row[sf] = fields[sf] ? fields[sf][i] : 0;
+    });
+    rows.push(row);
+  }
+});
+
+// === Sorting ===
+rows.sort((a, b) => {
+  if (typeof a[sortField] === "number") {
+    return a[sortField] - b[sortField]; // numeric sort
+  } else {
+    return String(a[sortField]).localeCompare(String(b[sortField])); // string/date sort
+  }
+});
+
+// === Axis categories ===
+const categories = rows.map(r => r[xField]);
+
+// === Build Series ===
+let series = stackFields.map(sf => ({
+  name: sf,
+  type: 'bar',
+  stack: 'total',
+  emphasis: { focus: 'series' },
+  data: rows.map(r => r[sf])
+}));
+
+// === Axis orientation ===
+const xAxis = orientation === "vertical"
+  ? { type: 'category', data: categories, name: xField }
+  : { type: 'value', name: 'Count' };
+
+const yAxis = orientation === "vertical"
+  ? { type: 'value', name: 'Count' }
+  : { type: 'category', data: categories, name: xField };
+
+return {
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' }
+  },
+  legend: { data: stackFields },
+  xAxis,
+  yAxis,
+  series
+};
