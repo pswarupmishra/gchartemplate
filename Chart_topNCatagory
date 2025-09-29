@@ -1,0 +1,54 @@
+// === Extract values from Grafana query result ===
+const fields = context.panel.data.series[0].fields;
+const colNames = fields.map(f => f.name);
+
+let rows = [];
+for (let i = 0; i < fields[0].values.length; i++) {
+  let row = {};
+  colNames.forEach((name, j) => {
+    row[name] = fields[j].values.get(i);
+  });
+  rows.push(row);
+}
+
+// === Map into funnel format ===
+const funnelData = rows.map(r => ({
+  name: r["DEFECT_ALLOCATION_UNIT"],
+  value: Number(r["QUANTITY"])
+}));
+
+// === Return ECharts option ===
+return {
+  title: {
+    text: 'Defect Allocation Funnel (Triangle)',
+    left: 'center'
+  },
+  tooltip: {
+    trigger: 'item',
+    formatter: params => `${params.name}<br/>Qty: ${params.value}`
+  },
+  series: [
+    {
+      name: 'Defect Quantity',
+      type: 'funnel',
+      left: '20%',
+      top: 60,
+      bottom: 20,
+      width: '60%',
+      min: 0,
+      max: Math.max(...funnelData.map(d => d.value)),
+      minSize: '0%',
+      maxSize: '100%',
+      sort: 'ascending',   // triangle / pyramid shape
+      gap: 0,
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: d => `${d.name}: ${d.value}`
+      },
+      labelLine: { show: true, length: 25 },
+      itemStyle: { borderColor: '#fff', borderWidth: 1 },
+      data: funnelData
+    }
+  ]
+};
