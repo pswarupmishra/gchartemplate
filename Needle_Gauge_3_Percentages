@@ -1,0 +1,101 @@
+// === Extract values from Grafana query result ===
+const fields = context.panel.data.series[0].fields;
+const colNames = fields.map(f => f.name);
+
+let row = {};
+colNames.forEach((name, i) => {
+  row[name] = Number(fields[i].values.get(0)); // force numeric
+});
+
+// === Calculate percentages ===
+const pctPass = (row["PASS"] / row["TOTAL_QUANTITY"]) * 100;
+const pctRework = (row["REWORK"] / row["TOTAL_QUANTITY"]) * 100;
+const pctDiverted = (row["DIVERTED"] / row["TOTAL_QUANTITY"]) * 100;
+
+return {
+  title: {
+    text: `Quality % Gauge\nTotal Qty: ${row["TOTAL_QUANTITY"].toFixed(1)} mT`,
+    left: 'center',
+    top: '2%'
+  },
+  legend: {
+    orient: 'horizontal',
+    bottom: 0,
+    textStyle: { fontSize: 12 },
+    data: [
+      { name: `%PASS ${pctPass.toFixed(1)}%`, icon: 'circle' },
+      { name: `%REWORK ${pctRework.toFixed(1)}%`, icon: 'circle' },
+      { name: `%DIVERTED ${pctDiverted.toFixed(1)}%`, icon: 'circle' }
+    ]
+  },
+  series: [
+    // Base dial
+    {
+      name: 'Gauge Base',
+      type: 'gauge',
+      startAngle: 225,
+      endAngle: -45,
+      min: 0,
+      max: 100,
+      splitNumber: 10,
+      axisLine: { lineStyle: { width: 15, color: [[1, '#ddd']] } },
+      pointer: { show: false },
+      detail: { show: false },
+      title: { show: false }
+    },
+    // PASS needle
+    {
+      name: `%PASS ${pctPass.toFixed(1)}%`,
+      type: 'gauge',
+      startAngle: 225,
+      endAngle: -45,
+      min: 0,
+      max: 100,
+      pointer: { show: true, length: '70%', width: 5 },
+      axisLine: { show: false },
+      splitLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      detail: { show: false },
+      title: { show: false },
+      itemStyle: { color: '#4caf50' },
+      data: [{ value: pctPass }]
+    },
+    // REWORK needle
+    {
+      name: `%REWORK ${pctRework.toFixed(1)}%`,
+      type: 'gauge',
+      startAngle: 225,
+      endAngle: -45,
+      min: 0,
+      max: 100,
+      pointer: { show: true, length: '70%', width: 5 },
+      axisLine: { show: false },
+      splitLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      detail: { show: false },
+      title: { show: false },
+      itemStyle: { color: '#ff9800' },
+      data: [{ value: pctRework }]
+    },
+    // DIVERTED needle
+    {
+      name: `%DIVERTED ${pctDiverted.toFixed(1)}%`,
+      type: 'gauge',
+      startAngle: 225,
+      endAngle: -45,
+      min: 0,
+      max: 100,
+      pointer: { show: true, length: '70%', width: 5 },
+      axisLine: { show: false },
+      splitLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      detail: { show: false },
+      title: { show: false },
+      itemStyle: { color: '#f44336' },
+      data: [{ value: pctDiverted }]
+    }
+  ]
+};
