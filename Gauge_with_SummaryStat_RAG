@@ -1,6 +1,6 @@
 // === CONFIGURABLE INPUTS ===
-const sortByColumn = 'timestamp';
-const plotColumn = 'temperature';
+const sortByColumn = 'no';
+const plotColumn = 'value';
 const summaryStat = 'average';  // 'sum' | 'average' | 'last' | 'max' | 'min'
 const target = 80;
 
@@ -87,7 +87,7 @@ return {
         roundCap: true,
         width: 15,
         itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+          color: new context.echarts.graphic.LinearGradient(0, 0, 1, 0, [
             { offset: 0, color: '#4caf50' },   // green
             { offset: (gradeThresholds.greenEnd / maxVal), color: '#4caf50' },
             { offset: (gradeThresholds.greenEnd / maxVal), color: '#ffb300' },
@@ -151,7 +151,7 @@ return {
       min: 0,
       max: maxVal
     },
-    // optional: Target marker
+    // === Target marker ===
     {
       type: 'gauge',
       startAngle: 200,
@@ -180,7 +180,7 @@ return {
     }
   ],
   tooltip: {
-    formatter: (params) => {
+    formatter: () => {
       return `
         <b>${plotColumn}</b><br/>
         Sorted by: ${sortByColumn}<br/>
